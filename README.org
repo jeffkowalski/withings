@@ -1,0 +1,18 @@
+withings - read data from withings scale and record to influxdb
+
+* Install
+bundle install
+* Authorize
+create application at https://account.withings.com/partner/dashboard_oauth2
+
+bundle exec withings.rb authorize
+* Scan
+Usage:
+  withings.rb record-status
+
+Options:
+      [--log], [--no-log]          # log output to ~/.log/.withings.log
+                                   # Default: true
+  -v, [--verbose], [--no-verbose]  # increase verbosity
+
+Record current data to database
