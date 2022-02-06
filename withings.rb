@@ -95,6 +95,8 @@ class Withings < Thor
     begin
       credentials = YAML.load_file CREDENTIALS_PATH
 
+      influxdb = InfluxDB::Client.new 'withings' unless options[:dry_run]
+
       records = begin
                   client = WithingsAPIOAuth2::Client.new(client_id: credentials[:client_id],
                                                          client_secret: credentials[:client_secret],
@@ -112,8 +114,6 @@ class Withings < Thor
                   meastype = MEASURE_TYPES.keys.join(',')
                   client.get("/measure?action=getmeas&category=1&startdate=#{date.next_day(-7).to_time.to_i}&enddate=#{(date.next_day(1).to_time.to_i - 1)}&meastype=#{meastype}")
                 end
-
-      influxdb = InfluxDB::Client.new 'withings' unless options[:dry_run]
 
       data = []
       records['body']['measuregrps'].each do |grp|
