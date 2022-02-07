@@ -11,6 +11,21 @@ require 'yaml'
 LOGFILE = File.join(Dir.home, '.log', 'withings.log')
 CREDENTIALS_PATH = File.join(Dir.home, '.credentials', 'withings.yaml')
 
+module Kernel
+  def with_rescue(exceptions, logger, retries: 5)
+    try = 0
+    begin
+      yield try
+    rescue *exceptions => e
+      try += 1
+      raise if try > retries
+
+      logger.info "caught error #{e.class}, retrying (#{try}/#{retries})..."
+      retry
+    end
+  end
+end
+
 MEASURE_TYPES = {
   1   => 'weight', # Weight (kg)
   4   => 'height', # Height (meter)
@@ -97,36 +112,37 @@ class Withings < Thor
 
       influxdb = InfluxDB::Client.new 'withings' unless options[:dry_run]
 
-      records = begin
-                  client = WithingsAPIOAuth2::Client.new(client_id: credentials[:client_id],
-                                                         client_secret: credentials[:client_secret],
-                                                         access_token: credentials[:access_token],
-                                                         refresh_token: credentials[:refresh_token],
-                                                         expires_at: credentials[:expires_at],
-                                                         user_id: credentials[:user_id])
-                  token = client.token
-                  credentials[:access_token] = token.token
-                  credentials[:refresh_token] = token.refresh_token
-                  credentials[:expires_at] = token.expires_at
-                  File.open(CREDENTIALS_PATH, 'w') { |file| file.write(credentials.to_yaml) }
+      with_rescue([NoMethodError], @logger) do |_try|
+        records = begin
+                    client = WithingsAPIOAuth2::Client.new(client_id: credentials[:client_id],
+                                                           client_secret: credentials[:client_secret],
+                                                           access_token: credentials[:access_token],
+                                                           refresh_token: credentials[:refresh_token],
+                                                           expires_at: credentials[:expires_at],
+                                                           user_id: credentials[:user_id])
+                    token = client.token
+                    credentials[:access_token] = token.token
+                    credentials[:refresh_token] = token.refresh_token
+                    credentials[:expires_at] = token.expires_at
+                    File.open(CREDENTIALS_PATH, 'w') { |file| file.write(credentials.to_yaml) }
 
-                  date = Date.today
-                  meastype = MEASURE_TYPES.keys.join(',')
-                  client.get("/measure?action=getmeas&category=1&startdate=#{date.next_day(-7).to_time.to_i}&enddate=#{(date.next_day(1).to_time.to_i - 1)}&meastype=#{meastype}")
-                end
+                    date = Date.today
+                    meastype = MEASURE_TYPES.keys.join(',')
+                    client.get("/measure?action=getmeas&category=1&startdate=#{date.next_day(-7).to_time.to_i}&enddate=#{(date.next_day(1).to_time.to_i - 1)}&meastype=#{meastype}")
+                  end
 
-      data = []
-      records['body']['measuregrps'].each do |grp|
-        timestamp = grp['date']
-        grp['measures'].each do |measure|
-          value = measure['value'].to_f * 10**measure['unit']
-          name = MEASURE_TYPES[measure['type']]
-          @logger.debug "#{Time.at(timestamp)} #{name} = #{value}"
-          data.push({ series: name, values: { value: value }, timestamp: timestamp })
+        data = []
+        records['body']['measuregrps'].each do |grp|
+          timestamp = grp['date']
+          grp['measures'].each do |measure|
+            value = measure['value'].to_f * 10**measure['unit']
+            name = MEASURE_TYPES[measure['type']]
+            @logger.debug "#{Time.at(timestamp)} #{name} = #{value}"
+            data.push({ series: name, values: { value: value }, timestamp: timestamp })
+          end
         end
+        influxdb.write_points data unless options[:dry_run]
       end
-
-      influxdb.write_points data unless options[:dry_run]
     rescue StandardError => e
       @logger.error e
     end
