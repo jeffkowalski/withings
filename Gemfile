@@ -6,7 +6,7 @@ gem 'addressable'
 gem 'influxdb'
 gem 'rest-client'
 gem 'thor'
-gem 'withings_api_oauth2', git: 'https://github.com/sreuterle/withings_api_oauth2'
+gem 'withings_api_oauth2', git: 'https://github.com/jeffkowalski/withings_api_oauth2'
 
 # for robe:
 gem 'method_source'
