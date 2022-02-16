@@ -1,30 +1,11 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
 
-require 'fileutils'
-require 'influxdb'
-require 'logger'
-require 'thor'
-require 'withings_api_oauth2'
-require 'yaml'
+require 'rubygems'
+require 'bundler/setup'
+Bundler.require(:default)
 
-LOGFILE = File.join(Dir.home, '.log', 'withings.log')
-CREDENTIALS_PATH = File.join(Dir.home, '.credentials', 'withings.yaml')
-
-module Kernel
-  def with_rescue(exceptions, logger, retries: 5)
-    try = 0
-    begin
-      yield try
-    rescue *exceptions => e
-      try += 1
-      raise if try > retries
-
-      logger.info "caught error #{e.class}, retrying (#{try}/#{retries})..."
-      retry
-    end
-  end
-end
+require_relative '../botbase/botbase.rb'
 
 MEASURE_TYPES = {
   1   => 'weight', # Weight (kg)
@@ -51,35 +32,10 @@ MEASURE_TYPES = {
   139 => 'atrial_fibrillation' # Atrial fibrillation result from PPG
 }
 
-class Withings < Thor
-  no_commands do
-    def redirect_output
-      unless LOGFILE == 'STDOUT'
-        logfile = File.expand_path(LOGFILE)
-        FileUtils.mkdir_p(File.dirname(logfile), mode: 0o755)
-        FileUtils.touch logfile
-        File.chmod 0o644, logfile
-        $stdout.reopen logfile, 'a'
-      end
-      $stderr.reopen $stdout
-      $stdout.sync = $stderr.sync = true
-    end
-
-    def setup_logger
-      redirect_output if options[:log]
-
-      @logger = Logger.new $stdout
-      @logger.level = options[:verbose] ? Logger::DEBUG : Logger::INFO
-      @logger.info 'starting'
-    end
-  end
-
-  class_option :log,     type: :boolean, default: true, desc: "log output to #{LOGFILE}"
-  class_option :verbose, type: :boolean, aliases: '-v', desc: 'increase verbosity'
-
+class Withings < RecorderBotBase
   desc 'authorize', 'authorize this application, and authenticate with the service'
   def authorize
-    credentials = YAML.load_file CREDENTIALS_PATH
+    credentials = load_credentials
     client = WithingsAPIOAuth2::Client.new(client_id: credentials[:client_id],
                                            client_secret: credentials[:client_secret],
                                            redirect_uri: credentials[:callback_url])
@@ -97,22 +53,18 @@ class Withings < Thor
     credentials[:access_token] = token.token
     credentials[:refresh_token] = token.refresh_token
     credentials[:expires_at] = token.expires_at
-    File.open(CREDENTIALS_PATH, 'w') { |file| file.write(credentials.to_yaml) }
+    store_credentials credentials
 
     puts 'authorization successful'
   end
 
-  desc 'record-status', 'record the current data to database'
-  method_option :dry_run, type: :boolean, aliases: '-d', desc: 'do not write to database'
-  def record_status
-    setup_logger
-
-    begin
-      credentials = YAML.load_file CREDENTIALS_PATH
+  no_commands do
+    def main
+      credentials = load_credentials
 
       influxdb = InfluxDB::Client.new 'withings' unless options[:dry_run]
 
-      with_rescue([NoMethodError], @logger) do |_try|
+      with_rescue([NoMethodError], logger) do |_try|
         records = begin
                     client = WithingsAPIOAuth2::Client.new(client_id: credentials[:client_id],
                                                            client_secret: credentials[:client_secret],
@@ -124,7 +76,7 @@ class Withings < Thor
                     credentials[:access_token] = token.token
                     credentials[:refresh_token] = token.refresh_token
                     credentials[:expires_at] = token.expires_at
-                    File.open(CREDENTIALS_PATH, 'w') { |file| file.write(credentials.to_yaml) }
+                    store_credentials credentials
 
                     date = Date.today
                     meastype = MEASURE_TYPES.keys.join(',')
@@ -137,14 +89,12 @@ class Withings < Thor
           grp['measures'].each do |measure|
             value = measure['value'].to_f * 10**measure['unit']
             name = MEASURE_TYPES[measure['type']]
-            @logger.debug "#{Time.at(timestamp)} #{name} = #{value}"
+            logger.debug "#{Time.at(timestamp)} #{name} = #{value}"
             data.push({ series: name, values: { value: value }, timestamp: timestamp })
           end
         end
         influxdb.write_points data unless options[:dry_run]
       end
-    rescue StandardError => e
-      @logger.error e
     end
   end
 end
