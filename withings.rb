@@ -5,7 +5,7 @@ require 'rubygems'
 require 'bundler/setup'
 Bundler.require(:default)
 
-require_relative '../botbase/botbase.rb'
+require_relative '../botbase/botbase'
 
 MEASURE_TYPES = {
   1   => 'weight', # Weight (kg)
@@ -30,7 +30,7 @@ MEASURE_TYPES = {
   137 => 'qt_interval_duration', # QT interval duration based on ECG signal
   138 => 'corrected_qt_interval_duration', # Corrected QT interval duration based on ECG signal
   139 => 'atrial_fibrillation' # Atrial fibrillation result from PPG
-}
+}.freeze
 
 class Withings < RecorderBotBase
   desc 'authorize', 'authorize this application, and authenticate with the service'
