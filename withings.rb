@@ -5,8 +5,6 @@ require 'rubygems'
 require 'bundler/setup'
 Bundler.require(:default)
 
-require_relative '../botbase/botbase'
-
 MEASURE_TYPES = {
   1   => 'weight', # Weight (kg)
   4   => 'height', # Height (meter)
