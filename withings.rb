@@ -78,7 +78,7 @@ class Withings < RecorderBotBase
 
                     date = Date.today
                     meastype = MEASURE_TYPES.keys.join(',')
-                    client.get("/measure?action=getmeas&category=1&startdate=#{date.next_day(-7).to_time.to_i}&enddate=#{(date.next_day(1).to_time.to_i - 1)}&meastype=#{meastype}")
+                    client.get("/measure?action=getmeas&category=1&startdate=#{date.next_day(-7).to_time.to_i}&enddate=#{date.next_day(1).to_time.to_i - 1}&meastype=#{meastype}")
                   end
 
         data = []
