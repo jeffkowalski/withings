@@ -63,23 +63,24 @@ class Withings < RecorderBotBase
       influxdb = InfluxDB::Client.new 'withings' unless options[:dry_run]
 
       with_rescue([NoMethodError], logger) do |_try|
-        records = begin
-                    client = WithingsAPIOAuth2::Client.new(client_id: credentials[:client_id],
-                                                           client_secret: credentials[:client_secret],
-                                                           access_token: credentials[:access_token],
-                                                           refresh_token: credentials[:refresh_token],
-                                                           expires_at: credentials[:expires_at],
-                                                           user_id: credentials[:user_id])
-                    token = client.token
-                    credentials[:access_token] = token.token
-                    credentials[:refresh_token] = token.refresh_token
-                    credentials[:expires_at] = token.expires_at
-                    store_credentials credentials
+        records =
+          begin
+            client = WithingsAPIOAuth2::Client.new(client_id: credentials[:client_id],
+                                                   client_secret: credentials[:client_secret],
+                                                   access_token: credentials[:access_token],
+                                                   refresh_token: credentials[:refresh_token],
+                                                   expires_at: credentials[:expires_at],
+                                                   user_id: credentials[:user_id])
+            token = client.token
+            credentials[:access_token] = token.token
+            credentials[:refresh_token] = token.refresh_token
+            credentials[:expires_at] = token.expires_at
+            store_credentials credentials
 
-                    date = Date.today
-                    meastype = MEASURE_TYPES.keys.join(',')
-                    client.get("/measure?action=getmeas&category=1&startdate=#{date.next_day(-7).to_time.to_i}&enddate=#{date.next_day(1).to_time.to_i - 1}&meastype=#{meastype}")
-                  end
+            date = Date.today
+            meastype = MEASURE_TYPES.keys.join(',')
+            client.get("/measure?action=getmeas&category=1&startdate=#{date.next_day(-7).to_time.to_i}&enddate=#{date.next_day(1).to_time.to_i - 1}&meastype=#{meastype}")
+          end
 
         data = []
         records['body']['measuregrps'].each do |grp|
