@@ -61,7 +61,7 @@ class Withings < RecorderBotBase
 
       influxdb = InfluxDB::Client.new 'withings' unless options[:dry_run]
 
-      with_rescue([Net::OpenTimeout, NoMethodError], logger) do |_try|
+      with_rescue([Net::OpenTimeout, NoMethodError, OAuth2::ConnectionError], logger) do |_try|
         records =
           begin
             client = WithingsAPIOAuth2::Client.new(client_id: credentials[:client_id],
