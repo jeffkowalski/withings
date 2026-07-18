@@ -37,9 +37,7 @@ class Withings < RecorderBotBase
                                            client_secret: credentials[:client_secret],
                                            redirect_uri: credentials[:callback_url])
 
-    puts 'Log in here:', client.auth_url
-    puts 'Then paste the URL where the browser is redirected:'
-    url = $stdin.gets.chomp
+    url = prompt_for_auth_redirect client.auth_url
     # url = 'http://example.com/handle/callback?code=...&state=dummystate'
     code = url[/code=([^&#]+)/, 1]
     # puts code
